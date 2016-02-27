@@ -27,6 +27,24 @@ def add_user(user_id, crns):
     pass
 
 
+def register_user(user_id, email, encrypted_psswd, crns):
+    """Register a user for classes using twil."""
+    # TODO: find out what to call from twil component
+    pass
+
+
+def validate_drexel_email(email):
+    """Make sure the email provided is a valid drexel email."""
+    import re
+    email_pattern = re.compile("\w{2,3}\d{2,3}\@drexel\.edu")
+    return email_pattern.match(email)
+
+
+def get_crns(user_id):
+    """Get the crns for this user from the db."""
+    return []
+
+
 ###############
 # ROUTES
 ##############
@@ -40,8 +58,8 @@ def index_route():
 def add_user_route():
     """Route for adding a user ID and the crns to the database."""
     # Get params
-    user_id = request.args.get("id", None)
-    crns = request.args.get("crns", None)
+    user_id = request.form.get("id", None)
+    crns = request.form.get("crns", None)
 
     # Check params
     if user_id is None:
@@ -57,8 +75,37 @@ def add_user_route():
     except ValueError:
         return response(400, "'crns' must be valid json.")
 
+    # Add user
     add_user(user_id, crns)
+
+    # Return response
     return response(200, "Successfully added user.")
+
+
+@app.route("/register_user")
+def register_user_route():
+    """Route for registering a user for classes when timeticket passes."""
+    # Get params
+    user_id = request.form.get("id", None)
+    email = request.form.get("email", None)
+    encrypted_psswd = request.form.get("password", None)
+
+    # Check params
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return response(400, "'id' must be an integer.")
+    if not validate_drexel_email(email):
+        return response(400, "'{}' is an invalid drexel email.".format(email))
+
+    # Get the crns for this user
+    crns = get_crns(user_id)
+
+    # Register users
+    register_user(user_id, email, encrypted_psswd, crns)
+
+    # Return response
+    return response(200, "Successfully registered for classes.")
 
 
 if __name__ == "__main__":
