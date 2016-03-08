@@ -123,5 +123,5 @@ def register_user_route():
 
 if __name__ == "__main__":
     create_working_dir()
-    app.run(debug=True, port=8080)
+    app.run(debug=True, port=8080, host="0.0.0.0")
 
