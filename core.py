@@ -81,6 +81,36 @@ def validate_drexel_email(email):
     return email_pattern.match(email)
 
 
+def validate_crns_str(crns_str):
+    """
+    Validate an array of crns as a json string.
+
+    return:
+        - (False, Error message as string is failed.)
+        - (True, The crns list.)
+    """
+    try:
+        # Must be valid json
+        crns = json.loads(crns_str)
+    except ValueError:
+        return False, "'crns' must be valid json."
+    try:
+        # Must be list
+        assert isinstance(crns, list)
+
+        # Must be strings.
+        # This is just in case we may have a crn that starts with 0.
+        # In this case, converting to an int will trim the 0 and add
+        # slightly more work for me adding the zeros back.
+        assert all(isinstance(x, basestring) for x in crns)
+
+        # Each crn must be length 5
+        assert all(len(x) == 5 for x in crns)
+    except AssertionError:
+        return False, "The crns must be an array of strings."
+    return True, crns
+
+
 def get_crns(user_id, email):
     """
     Get the crns for this user from the db.

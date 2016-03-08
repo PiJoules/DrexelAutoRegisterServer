@@ -12,7 +12,7 @@ import json
 from flask import Flask, request
 from uuid import uuid4
 from core import response, validate_drexel_email, add_user, register_user
-from core import get_crns, create_working_dir
+from core import get_crns, create_working_dir, validate_crns_str
 
 # Create flask obj
 app = Flask(__name__)
@@ -33,7 +33,8 @@ def add_user_route():
     id:
         Unique ID associated with the user. This is generated on the client
         and is not meant to be viewed by the user (or anyone else). It should
-        also not be in plain text. Having a unique ID unknown to users will
+        also not be in plain text. A preferred id is a random string of
+        characters/numbers. Having a unique ID unknown to users will
         allow us to add a layer of security such that users will not be able
         to register classes for other users.
     email:
@@ -49,18 +50,17 @@ def add_user_route():
     # Check params
     if user_id is None:
         return response(400, "'id' was not provided.")
+    if email is None:
+        return response(400, "'email' was not provided.")
     if crns is None:
         return response(400, "'crns' was not provided.")
 
     # Check types
-    try:
-        user_id = int(user_id)
-    except ValueError:
-        return response(400, "'id' must be an integer.")
-    try:
-        crns = json.loads(crns)
-    except ValueError:
-        return response(400, "'crns' must be valid json.")
+    isvalid, resp = validate_crns_str(crns)
+    if not isvalid:
+        return response(400, resp)
+    else:
+        crns = resp
     if not email or not validate_drexel_email(email):
         return response(400, "Invalid email provided.")
 
@@ -93,16 +93,18 @@ def register_user_route():
     encrypted_psswd = request.form.get("password", None)
 
     # Check params
-    try:
-        user_id = int(user_id)
-    except ValueError:
-        return response(400, "'id' must be an integer.")
+    if user_id is None:
+        return response(400, "'id' was not provided.")
+    if email is None:
+        return response(400, "'email' was not provided.")
+    if encrypted_psswd is None:
+        return response(400, "'password' was not provided.")
     if not validate_drexel_email(email):
-        return response(400, "'{}' is an invalid drexel email.".format(email))
+        return response(400, "Invalid email provided.")
 
     # Get the crns for this user
     try:
-        crns = get_crns(user_id)
+        crns = get_crns(user_id, email)
     except IOError:
         return response(400,
                         "The user with id '{}' does not exist."
@@ -110,7 +112,7 @@ def register_user_route():
     if crns is None:
         return response(400,
                         ("The user_id '{}' is not associated with the "
-                         "email '{}'".format(user_id, email)))
+                         "email '{}'.".format(user_id, email)))
 
     # Register users
     register_user(email, encrypted_psswd, crns)
