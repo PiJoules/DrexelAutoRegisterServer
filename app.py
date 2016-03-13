@@ -9,10 +9,10 @@ from __future__ import print_function
 
 import json
 
+from register import register
 from flask import Flask, request
 from uuid import uuid4
-from core import response, validate_drexel_email, add_user, register_user
-from core import get_crns, create_working_dir, validate_crns_str
+from core import response, create_working_dir
 
 # Create flask obj
 app = Flask(__name__)
@@ -23,102 +23,49 @@ app.secret_key = str(uuid4())
 # ROUTES
 ##############
 
-
-@app.route("/add_user", methods=["POST"])
-def add_user_route():
-    """
-    Route for adding a user ID and the crns to the database.
-
-    params
-    id:
-        Unique ID associated with the user. This is generated on the client
-        and is not meant to be viewed by the user (or anyone else). It should
-        also not be in plain text. A preferred id is a random string of
-        characters/numbers. Having a unique ID unknown to users will
-        allow us to add a layer of security such that users will not be able
-        to register classes for other users.
-    email:
-        The user's drexel email.
-    crns:
-        JSON string that is just an array of crns as ints.
-    """
-    # Get params
-    user_id = request.form.get("id", None)
-    email = request.form.get("email", None)
-    crns = request.form.get("crns", None)
-
-    # Check params
-    if user_id is None:
-        return response(400, "'id' was not provided.")
-    if email is None:
-        return response(400, "'email' was not provided.")
-    if crns is None:
-        return response(400, "'crns' was not provided.")
-
-    # Check types
-    isvalid, resp = validate_crns_str(crns)
-    if not isvalid:
-        return response(400, resp)
-    else:
-        crns = resp
-    if not email or not validate_drexel_email(email):
-        return response(400, "Invalid email provided.")
-
-    # Add user
-    add_user(user_id, email, crns)
-
-    # Return response
-    return response(200, "Successfully added user.")
-
-
 @app.route("/register_user", methods=["POST"])
 def register_user_route():
     """
     Route for registering a user for classes when timeticket passes.
 
-    params:
     id:
-        The unique ID associated with the user. This is the same as the one
-        passed earlier in the add_user_route.
-    email:
-        User email. This must be the same email associeated with the ID sent
-        in add_user_route and this message.
+        The drexel ID associated with the user.
     password:
-        Encrypted password. This is done on the user end, but the server must
-        also know the encryption algorithm to decrypt it.
+        Drexel login password.
+    crns:
+        JSON string that is just an array of crns as ints.
     """
     # Get params
     user_id = request.form.get("id", None)
-    email = request.form.get("email", None)
-    encrypted_psswd = request.form.get("password", None)
+    psswd = request.form.get("password", None)
+    crns = request.form.get("crns", None)
+    print(user_id, psswd, crns)
 
     # Check params
-    if user_id is None:
-        return response(400, "'id' was not provided.")
-    if email is None:
-        return response(400, "'email' was not provided.")
-    if encrypted_psswd is None:
-        return response(400, "'password' was not provided.")
-    if not validate_drexel_email(email):
-        return response(400, "Invalid email provided.")
-
-    # Get the crns for this user
     try:
-        crns = get_crns(user_id, email)
-    except IOError:
-        return response(400,
-                        "The user with id '{}' does not exist."
-                        .format(user_id))
-    if crns is None:
-        return response(400,
-                        ("The user_id '{}' is not associated with the "
-                         "email '{}'.".format(user_id, email)))
+        assert isinstance(user_id, basestring)
+        assert isinstance(psswd, basestring)
+
+        crns = json.loads(crns)
+        assert isinstance(crns, list)
+        assert all(isinstance(x, basestring) and len(x) == 5 for x in crns)
+    except Exception:
+        return response(
+            400, "Error: Invalid types supplied. Make sure the user_id, "
+            "password, and crns are all valid.")
 
     # Register users
-    register_user(email, encrypted_psswd, crns)
+    errors = register(user_id, psswd, crns)
+    print("errors: ", map(str, errors))
 
     # Return response
-    return response(200, "Successfully registered for classes.")
+    if not errors:
+        return response(200, "Successfully registered for classes.")
+    else:
+        error_msg = "Failed to register crns: "
+        error_msg += ", ".join("{} ({})".format(err.crn, err.status)
+                               for err in errors)
+        return response(400, error_msg)
 
 
 if __name__ == "__main__":
